@@ -1,0 +1,139 @@
+import Jetson.GPIO as GPIO
+import time
+import pyaudio
+from adafruit_adxl34x import ADXL345
+
+# Constants for GPIO pins
+ESC_GPIO_PIN = 18
+RPM_SENSOR_PIN1 = 17
+RPM_SENSOR_PIN2 = 27
+
+# Setup GPIO
+GPIO.setmode(GPIO.BCM)
+GPIO.setup([ESC_GPIO_PIN, RPM_SENSOR_PIN1, RPM_SENSOR_PIN2], GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+# Initialize accelerometers
+accel_1 = ADXL345(i2c_bus=1)
+accel_2 = ADXL345(i2c_bus=2)
+
+# Initialize PyAudio for USB microphone
+pa = pyaudio.PyAudio()
+stream = pa.open(format=pyaudio.paInt16, channels=1, rate=44100, input=True, frames_per_buffer=1024)
+
+def read_rpm(sensor_pin):
+    rpm_count = 0
+    start_time = time.time()
+
+    def rpm_callback(channel):
+        nonlocal rpm_count
+        rpm_count += 1
+
+    GPIO.add_event_detect(sensor_pin, GPIO.RISING, callback=rpm_callback)
+    time.sleep(1)
+    GPIO.remove_event_detect(sensor_pin)
+    duration = time.time() - start_time
+    rpm = (rpm_count / duration) * 60
+    return rpm
+
+def read_acceleration(accel):
+    return accel.acceleration
+
+def cleanup_hardware():
+    GPIO.cleanup()
+    stream.stop_stream()
+    stream.close()
+    pa.terminate()
+import numpy as np
+from sklearn.linear_model import LinearRegression
+
+# Initialize machine learning model
+ml_model = LinearRegression()
+
+def process_data(accel_data):
+    # Dummy processing logic
+    return np.mean(accel_data)
+
+def calculate_specific_unbalance(acceleration, radius=0.1, mass=50):
+    # Calculate the unbalance based on the acceleration, radius, and mass
+    return (acceleration * radius) / mass
+
+def predict_adjustment(features):
+    return ml_model.predict([features])
+import json
+
+def load_config(file_path):
+    with open(file_path, 'r') as file:
+        return json.load(file)
+
+def save_data(data, file_path):
+    with open(file_path, 'w') as file:
+        json.dump(data, file)
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog
+from backend.readings import read_rpm, read_acceleration, cleanup_hardware
+from backend.processing import calculate_specific_unbalance, process_data
+
+class MotorControlGUI(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Motor Control Interface")
+        self.geometry("600x400")
+
+        # Menu
+        menubar = tk.Menu(self)
+        self.config(menu=menubar)
+        file_menu = tk.Menu(menubar, tearoff=0)
+        file_menu.add_command(label="Save Data as CSV", command=self.save_data_csv)
+        file_menu.add_command(label="Save Results as Excel", command=self.save_results_excel)
+        file_menu.add_separator()
+        file_menu.add_command(label="Exit", command=self.quit)
+        menubar.add_cascade(label="File", menu=file_menu)
+
+        # Status labels
+        self.status_frame = ttk.Frame(self)
+        self.status_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        self.rpm_label1 = ttk.Label(self.status_frame, text="RPM Sensor 1: 0")
+        self.rpm_label1.pack(side=tk.LEFT, padx=5)
+
+        self.rpm_label2 = ttk.Label(self.status_frame, text="RPM Sensor 2: 0")
+        self.rpm_label2.pack(side=tk.LEFT, padx=5)
+
+        # Throttle Control
+        self.throttle_slider = ttk.Scale(self, from_=0, to=100, orient="horizontal", length=300)
+        self.throttle_slider.pack(pady=10)
+
+        # Buttons
+        ttk.Button(self, text="Start Motor", command=self.start_motor).pack()
+        ttk.Button(self, text="Stop Motor", command=self.stop_motor).pack()
+        ttk.Button(self, text="Emergency Stop", command=self.emergency_stop).pack()
+
+    def start_motor(self):
+        target_throttle = int(self.throttle_slider.get())
+        # Logic to start motor
+
+    def stop_motor(self):
+        # Logic to stop motor
+
+    def emergency_stop(self):
+        # Logic for emergency stop
+
+    def save_data_csv(self):
+        file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")])
+        if file_path:
+            # Save data logic
+
+    def save_results_excel(self):
+        file_path = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel Files", "*.xlsx")])
+        if file_path:
+            # Save results logic
+
+if __name__ == "__main__":
+    app = MotorControlGUI()
+    app.mainloop()
+    cleanup_hardware()
+from frontend.app import MotorControlGUI
+
+if __name__ == '__main__':
+    app = MotorControlGUI()
+    app.mainloop()
